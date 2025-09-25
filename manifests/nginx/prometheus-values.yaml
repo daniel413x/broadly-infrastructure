@@ -1,0 +1,19 @@
+controller:
+  ingressClass: nginx-prometheus
+  ingressClassResource:
+    enabled: true
+    name: nginx-prometheus
+    default: false
+  watchIngressWithoutClass: false
+  ingressClassByName: true
+  extraArgs:
+    {
+      default-ssl-certificate: "default/nginx-certs"
+    }
+  podAnnotations:
+    {
+      consul.hashicorp.com/connect-inject: "true",
+      consul.hashicorp.com/connect-service: "ingress-prometheus",
+      consul.hashicorp.com/transparent-proxy: "true",
+      consul.hashicorp.com/transparent-proxy-exclude-inbound-ports: "80,443,8443",
+    }

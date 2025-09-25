@@ -1,0 +1,32 @@
+# run the command:
+
+# helm upgrade --install ingress-nginx-client ingress-nginx \
+  # --repo https://kubernetes.github.io/ingress-nginx \
+  # --namespace ingress-nginx --create-namespace \
+  # --values client-values.yaml \
+  # --wait --timeout 5m --atomic
+
+  # note the parameter ingress-nginx-client
+
+# in ingress/client-ingress.yaml, include in the annotation the substring dervied from above:
+# spec.ingressClassName: nginx-client
+
+controller:
+  ingressClass: nginx-client
+  ingressClassResource:
+    enabled: true
+    name: nginx-client
+    default: false
+  watchIngressWithoutClass: false
+  ingressClassByName: true
+  extraArgs:
+    {
+      default-ssl-certificate: "default/nginx-certs"
+    }
+  podAnnotations:
+    {
+      consul.hashicorp.com/connect-inject: "true",
+      consul.hashicorp.com/connect-service: "ingress-client",
+      consul.hashicorp.com/transparent-proxy: "true",
+      consul.hashicorp.com/transparent-proxy-exclude-inbound-ports: "80,443,8443",
+    }

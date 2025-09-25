@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: client
+spec:
+  selector:
+    app: client
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: client
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: client
+  template:
+    metadata:
+      name: client
+      labels:
+        app: client
+    spec:
+      serviceAccountName: client
+      containers:
+        - name: client
+          image: daniel413x/broadly-client:dev
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: NEXT_PUBLIC_APP_URL
+              valueFrom: { secretKeyRef: { name: client-secrets, key: NEXT_PUBLIC_APP_URL } }
+            - name: NEXT_PUBLIC_ROOT_DOMAIN
+              valueFrom: { secretKeyRef: { name: client-secrets, key: NEXT_PUBLIC_ROOT_DOMAIN } }
+            - name: NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING
+              valueFrom: { secretKeyRef: { name: client-secrets, key: NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING } }
+            - name: DATABASE_URI
+              valueFrom: { secretKeyRef: { name: client-secrets, key: DATABASE_URI } }
+            - name: PAYLOAD_SECRET
+              valueFrom: { secretKeyRef: { name: client-secrets, key: PAYLOAD_SECRET } }
+            - name: STRIPE_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: client-secrets, key: STRIPE_SECRET_KEY } }
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom: { secretKeyRef: { name: client-secrets, key: STRIPE_WEBHOOK_SECRET } }
+            - name: STRIPE_ACCOUNT
+              valueFrom: { secretKeyRef: { name: client-secrets, key: STRIPE_ACCOUNT } }
+            - name: BLOB_READ_WRITE_TOKEN
+              valueFrom: { secretKeyRef: { name: client-secrets, key: BLOB_READ_WRITE_TOKEN } }
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "4"
+            limits:
+              memory: "10Gi"
+              cpu: "6"
