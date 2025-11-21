@@ -22,8 +22,8 @@ spec:
               value: "Broadly"
             - name: DOCKER_INFLUXDB_INIT_BUCKET
               value: "jmeter"
-            - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN # also referenced in grafana-deployment.yaml
-              valueFrom: { secretKeyRef: { name: monitoring-secrets, key: INFLUX_TOKEN } }
+            - name: DOCKER_INFLUXDB_INIT_ADMIN_TOKEN
+              valueFrom: { secretKeyRef: { name: monitoring-secrets, key: INFLUX_DB_TOKEN } }
             - name: DOCKER_INFLUXDB_INIT_USERNAME
               valueFrom: { secretKeyRef: { name: monitoring-secrets, key: DOCKER_INFLUXDB_INIT_USERNAME } }
             - name: DOCKER_INFLUXDB_INIT_PASSWORD

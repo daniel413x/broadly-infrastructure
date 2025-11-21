@@ -16,11 +16,11 @@ spec:
           image: grafana/grafana:latest
           imagePullPolicy: IfNotPresent
           env:
-            - name: INFLUX_TOKEN # also referenced in influxdb-deployment.yaml
-              valueFrom: { secretKeyRef: { name: monitoring-secrets, key: INFLUX_TOKEN } }
+            - name: INFLUX_DB_TOKEN # also referenced in influxdb-deployment.yaml
+              valueFrom: { secretKeyRef: { name: monitoring-secrets, key: INFLUX_DB_TOKEN } }
             - name: GF_SECURITY_ADMIN_USER
               valueFrom: { secretKeyRef: { name: monitoring-secrets, key: GF_SECURITY_ADMIN_USER } }
-            - name: GF_SECURITY_ADMIN_USER
+            - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom: { secretKeyRef: { name: monitoring-secrets, key: GF_SECURITY_ADMIN_PASSWORD } }
           ports:
             - containerPort: 8087
@@ -71,7 +71,7 @@ data:
           defaultBucket: jmeter
           tlsSkipVerify: true
         secureJsonData:
-          token: ${INFLUX_TOKEN}
+          token: ${INFLUX_DB_TOKEN}
 ---
 apiVersion: v1
 kind: ServiceAccount

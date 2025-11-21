@@ -1,0 +1,301 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jenkins-pvc
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+  # storageClassName: standard     # uncomment to pin a class
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  labels: { app: jenkins }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: jenkins }
+  template:
+    metadata:
+      name: jenkins
+      labels: { app: jenkins }
+    spec:
+      serviceAccountName: jenkins
+      securityContext:
+        fsGroup: 1000           # jenkins user group
+      containers:
+        - name: jenkins
+          image: daniel413x/broadly-jenkins:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080   # UI
+            - containerPort: 50000  # inbound agents
+          # for each JcasC credential there has to be a value defined assigned from a k8s secret
+          env:
+            - name: CASC_JENKINS_CONFIG
+              value: /var/jenkins_home/casc_configs/jenkins.yaml
+            - name: JENKINS_OPTS
+              value: "--prefix=/"
+            - name: NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING } }
+            - name: STRIPE_SECRET_KEY
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: STRIPE_SECRET_KEY } }
+            - name: GITHUB_APP_INSTALLATION
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: GITHUB_APP_INSTALLATION } }
+            - name: GITHUB_APP_PEM
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: GITHUB_APP_PEM } }
+            - name: PAYLOAD_DATABASE_URI
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: PAYLOAD_DATABASE_URI } }
+            - name: PAYLOAD_SECRET
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: PAYLOAD_SECRET } }
+            - name: SONAR_TOKEN
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: SONAR_TOKEN } }
+            - name: STRIPE_ACCOUNT
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: STRIPE_ACCOUNT } }
+            - name: BLOB_READ_WRITE_TOKEN
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: BLOB_READ_WRITE_TOKEN } }
+            - name: GITHUB_APP_PEM_USERNAME
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: GITHUB_APP_PEM_USERNAME } }
+            - name: GITHUB_APP_CLIENT_ID
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: GITHUB_APP_CLIENT_ID } }
+            - name: INFLUX_DB_URL
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: INFLUX_DB_URL } }
+            - name: NEXT_PUBLIC_APP_URL
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: NEXT_PUBLIC_APP_URL } }
+            - name: NEXT_PUBLIC_ROOT_DOMAIN
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: NEXT_PUBLIC_ROOT_DOMAIN } }
+            - name: INFLUX_DB_TOKEN
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: INFLUX_DB_TOKEN } }
+            - name: STRIPE_WEBHOOK_SECRET
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: STRIPE_WEBHOOK_SECRET } }
+          volumeMounts:
+            - name: jenkins-home
+              mountPath: /var/jenkins_home
+            - name: jenkins-casc
+              mountPath: /var/jenkins_home/casc_configs
+              readOnly: true
+          readinessProbe:
+            httpGet: { path: /login, port: 8080 }
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet: { path: /login, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "4"
+            limits:
+              memory: "10Gi"
+              cpu: "6"
+      volumes:
+        - name: jenkins-home
+          persistentVolumeClaim:
+            claimName: jenkins-pvc
+        - name: jenkins-casc
+          configMap:
+            name: jenkins-casc
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc
+data:
+  jenkins.yaml: |
+    jobs:
+    - script: >
+        multibranchPipelineJob('broadly-client') {
+          branchSources {
+            branchSource {
+              source {
+                git {
+                  id('broadly-client-git')
+                  remote('https://github.com/daniel413x/broadly.git')
+                  traits {
+                    gitBranchDiscovery()
+                    headWildcardFilter {
+                      includes('staging')
+                      excludes('')
+                    }
+                  }
+                }
+              }
+            }
+          }
+
+          factory {
+            workflowBranchProjectFactory {
+              scriptPath('Jenkinsfile')
+            }
+          }
+
+          triggers {
+            periodicFolderTrigger {
+              interval('1m')
+            }
+          }
+          orphanedItemStrategy {
+            discardOldItems {
+              numToKeep(1)
+            }
+          }
+        }
+    jenkins:
+      systemMessage: "Bootstrapped via JCasC"
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: zdzdzd
+              password: zdzdzd
+      authorizationStrategy:
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
+    credentials:
+      system:
+        domainCredentials:
+          - credentials:
+            - string:
+                scope: GLOBAL
+                id: "STRIPE_SECRET_KEY"
+                secret: ${STRIPE_SECRET_KEY}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "GITHUB_APP_INSTALLATION"
+                secret: ${GITHUB_APP_INSTALLATION}
+                description: ""
+            - basicSSHUserPrivateKey:
+                scope: GLOBAL
+                id: "GITHUB_APP_PEM"
+                username: daniel413x
+                passphrase: ""
+                description: ""
+                privateKeySource:
+                  directEntry:
+                    privateKey: "${GITHUB_APP_PEM}"
+            - string:
+                scope: GLOBAL
+                id: "PAYLOAD_DATABASE_URI"
+                secret: ${PAYLOAD_DATABASE_URI}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "PAYLOAD_SECRET"
+                secret: ${PAYLOAD_SECRET}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "SONAR_TOKEN"
+                secret: ${SONAR_TOKEN}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "STRIPE_ACCOUNT"
+                secret: ${STRIPE_ACCOUNT}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "BLOB_READ_WRITE_TOKEN"
+                secret: ${BLOB_READ_WRITE_TOKEN}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "GITHUB_APP_CLIENT_ID"
+                secret: ${GITHUB_APP_CLIENT_ID}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "INFLUX_DB_URL"
+                secret: ${INFLUX_DB_URL}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "NEXT_PUBLIC_APP_URL"
+                secret: ${NEXT_PUBLIC_APP_URL}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING"
+                secret: ${NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "NEXT_PUBLIC_ROOT_DOMAIN"
+                secret: ${NEXT_PUBLIC_ROOT_DOMAIN}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "INFLUX_DB_TOKEN"
+                secret: ${INFLUX_DB_TOKEN}
+                description: ""
+            - string:
+                scope: GLOBAL
+                id: "STRIPE_WEBHOOK_SECRET"
+                secret: ${STRIPE_WEBHOOK_SECRET}
+                description: ""
+    tool:
+      git:
+        installations:
+        - home: "git"
+          name: "Default"
+      mavenGlobalConfig:
+        globalSettingsProvider: "standard"
+        settingsProvider: "standard"
+      nodejs:
+        installations:
+        - name: "18.20.2"
+          properties:
+          - installSource:
+              installers:
+              - nodeJSInstaller:
+                  id: "18.20.2"
+                  npmPackagesRefreshHours: 72
+      sonarRunnerInstallation:
+        installations:
+        - name: "SonarQube Scanner"
+          properties:
+          - installSource:
+              installers:
+              - sonarRunnerInstaller:
+                  id: "7.2.0.5079"
+    unclassified:
+      sonarGlobalConfiguration:
+        buildWrapperEnabled: false
+        installations:
+        - credentialsId: "SONAR_TOKEN"
+          name: "SonarCloud"
+          serverUrl: "https://sonarcloud.io"
+          triggers:
+            skipScmCause: false
+            skipUpstreamCause: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jenkins
+  labels: { app: jenkins }
+spec:
+  selector:
+    app: jenkins
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: agent
+      port: 50000
+      targetPort: 50000

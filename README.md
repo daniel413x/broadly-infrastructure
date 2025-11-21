@@ -44,29 +44,49 @@ Define client secrets:
 
 ```bash
 kubectl -n default create secret generic client-secrets \
-    --from-literal=NEXT_PUBLIC_APP_URL=VALUE # local development example: http://client.broadly (ensure there is a corresponding entry in the hosts file)
-    --from-literal=NEXT_PUBLIC_ROOT_DOMAIN=VALUE # local development example: client.broadly (ensure there is a corresponding entry in the hosts file)
+    --from-literal=NEXT_PUBLIC_APP_URL="VALUE" \ # local development example: http://client.broadly (ensure there is a corresponding entry in the hosts file)
+    --from-literal=NEXT_PUBLIC_ROOT_DOMAIN="VALUE" \ # local development example: client.broadly (ensure there is a corresponding entry in the hosts file)
     --from-literal=NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING="false"
     --from-literal=DATABASE_URI="mongodb+srv://USERNAME:PASSWORD@HOST/DB"
-    --from-literal=PAYLOAD_SECRET=VALUE # Found in the Payload dashboard
-    --from-literal=STRIPE_SECRET_KEY=VALUE # Found in the Stripe dashboard
-    --from-literal=STRIPE_ACCOUNT=VALUE  # Found in the Stripe dashboard
-    --from-literal=STRIPE_WEBHOOK_SECRET=VALUE # Found in the Stripe dashboard
-    --from-literal=BLOB_READ_WRITE_TOKEN=VALUE # Generated in the Vercel dashboard
+    --from-literal=PAYLOAD_SECRET="VALUE" \ # Found in the Payload dashboard
+    --from-literal=STRIPE_SECRET_KEY="VALUE" \ # Found in the Stripe dashboard
+    --from-literal=STRIPE_ACCOUNT="VALUE" \  # Found in the Stripe dashboard
+    --from-literal=STRIPE_WEBHOOK_SECRET="VALUE" \ # Found in the Stripe dashboard
+    --from-literal=BLOB_READ_WRITE_TOKEN="VALUE"  # Generated in the Vercel dashboard
 ```
 
 Define monitoring secrets:
 
 ```bash
 kubectl -n default create secret generic monitoring-secrets \
-# DO WE NEED THIS?
-    # --from-literal=INFLUX_DB_TOKEN=VALUE # Created in the Influx DB GUI
-    --from-literal=INFLUX_DB_URL=VALUE # For example: http://localhost:8086/api/v2/write?org=broadly&bucket=jmeter
-    --from-literal=INFLUX_TOKEN=VALUE # This can be generated before having to access the InfluxDB server. It should be a Base64URL. It is read on initialization by both services InfluxDB and Grafana
-    --from-literal=GF_SECURITY_ADMIN_USER=VALUE # Grafana init admin user
-    --from-literal=GF_SECURITY_ADMIN_PASSWORD=VALUE # Grafana init admin password
-    --from-literal=DOCKER_INFLUXDB_INIT_USERNAME=VALUE # InfluxDB init admin password
-    --from-literal=DOCKER_INFLUXDB_INIT_PASSWORD=VALUE # InfluxDB init admin password
+    --from-literal=INFLUX_DB_URL="VALUE" \ # For example: http://localhost:8086/api/v2/write?org=broadly&bucket=jmeter
+    --from-literal=INFLUX_DB_TOKEN="VALUE" \ # This can be generated before having to access the InfluxDB server. It should be a Base64URL. It is read on initialization by both services InfluxDB and Grafana
+    --from-literal=GF_SECURITY_ADMIN_USER="VALUE" \ # Grafana init admin user
+    --from-literal=GF_SECURITY_ADMIN_PASSWORD="VALUE" \ # Grafana init admin password
+    --from-literal=DOCKER_INFLUXDB_INIT_USERNAME="VALUE" \ # InfluxDB init admin password
+    --from-literal=DOCKER_INFLUXDB_INIT_PASSWORD="VALUE"  
+```
+
+Define Jenkins secrets:
+
+```bash
+kubectl -n default create secret generic jenkins-secrets \
+    --from-literal=NEXT_PUBLIC_ENABLE_SUBDOMAIN_ROUTING="false" # See broadly-client documentation
+    --from-literal=BLOB_READ_WRITE_TOKEN="VALUE" \ # Generated in the Vercel dashboard
+    --from-literal=NEXT_PUBLIC_ROOT_DOMAIN="VALUE" \ # local development example: client.broadly (ensure there is a corresponding entry in the hosts file)
+    --from-literal=NEXT_PUBLIC_APP_URL="VALUE" \ # local development example: http://client.broadly (ensure there is a corresponding entry in the hosts file)
+    --from-literal=INFLUX_DB_TOKEN="VALUE" \ # This can be generated before having to access the InfluxDB server. It should be a Base64URL. It is read on initialization by both services InfluxDB and Grafana
+    --from-literal=INFLUX_DB_URL="VALUE" \ # For example: http://localhost:8086/api/v2/write?org=broadly&bucket=jmeter
+    --from-literal=STRIPE_ACCOUNT="VALUE" \  # Found in the Stripe dashboard
+    --from-literal=STRIPE_WEBHOOK_SECRET="VALUE" \ # Found in the Stripe dashboard
+    --from-literal=STRIPE_SECRET_KEY="VALUE" \ # Found in the Stripe dashboard
+    --from-literal=PAYLOAD_SECRET="VALUE" \ # Found in the Payload dashboard
+    --from-literal=PAYLOAD_DATABASE_URI="VALUE" \     # a MongoDB connection string, e.g. "mongodb+srv://USERNAME:PASSWORD@HOST/DB"
+    --from-literal=SONAR_TOKEN="VALUE" \     # Found in the SonarCloud dashboard
+    --from-literal=GITHUB_APP_CLIENT_ID="VALUE" \     # Found at https://github.com/settings/apps/broadly
+    --from-literal=GITHUB_APP_INSTALLATION="VALUE" \     # Found at https://github.com/settings/installations Select "broadly" and note the dynamic part of the URL--that is the installation
+    --from-literal=GITHUB_APP_PEM_USERNAME="VALUE" \     # Match repo's owner
+    --from-literal=GITHUB_APP_PEM="VALUE"      # Generateda at https://github.com/settings/apps/broadly
 ```
 
 ## Initialize ingress controllers
@@ -99,6 +119,12 @@ helm upgrade --install ingress-nginx-prometheus ingress-nginx \
   --repo https://kubernetes.github.io/ingress-nginx \
   --namespace ingress-nginx --create-namespace \
   --values prometheus-values.yaml
+```
+```bash
+helm upgrade --install ingress-nginx-jenkins ingress-nginx \
+  --repo https://kubernetes.github.io/ingress-nginx \
+  --namespace ingress-nginx --create-namespace \
+  --values jenkins-values.yaml
 ```
 
 ## Edit hosts file
@@ -133,12 +159,34 @@ helm upgrade --install ingress-nginx-prometheus ingress-nginx \
 
 ## Initialize ingress rules  
 
-From `/ingress`, run `kubectl apply -f ./` 
+From `/ingress`, run `kubectl apply -f ./`
 
 ## Initialize services
 
 For each folder in `/services`, run `kubectl apply -f ./` 
 
+## Utilize port forwarding to facilitate GitHub webhooks locally
+
+For local development, a Kubernetes-deployed service will need to be exposed via `ngrok`, but the service must first be port-forwarded. 
+
+```bash
+kubectl port-forward svc/jenkins 8080:8080
+```
+In a new terminal:
+```bash
+ngrok http 8080
+```
+This will return a URL such as the following:
+
+```bash
+https://[identifier].ngrok-free.app
+```
+
+Append to the URL the subroute `/github-webhook/` and define it in your GitHub repository's `Payload URL`:
+
+```bash
+https://54542931f6ce.ngrok-free.app/github-webhook/
+```
 
 ## Cleanup
 
@@ -147,6 +195,7 @@ For each folder in `/services`, run `kubectl apply -f ./`
 ```bash
 kubectl delete secret monitoring-secrets
 kubectl delete secret client-secrets
+kubectl delete secret jenkins-secrets
 ```
 
 2. Delete services
@@ -158,6 +207,7 @@ helm uninstall ingress-nginx-client -n ingress-nginx
 helm uninstall ingress-nginx-grafana -n ingress-nginx
 helm uninstall ingress-nginx-influxdb -n ingress-nginx
 helm uninstall ingress-nginx-prometheus -n ingress-nginx
+helm uninstall ingress-nginx-jenkins -n ingress-nginx
 ```
 
 4. Power down minikube:
