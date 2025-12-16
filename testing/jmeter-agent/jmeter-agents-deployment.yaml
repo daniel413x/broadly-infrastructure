@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jmeter-agents
+spec:
+  replicas: 0                   # scale as needed
+  selector:
+    matchLabels:
+      app: jmeter-agent
+  template:
+    metadata:
+      labels:
+        app: jmeter-agent
+    spec:
+      containers:
+        - name: jmeter-server
+          image: daniel413x/broadly-jmeter-agent:1.0.0
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 1099
+            - containerPort: 50000

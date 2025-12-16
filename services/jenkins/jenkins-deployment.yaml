@@ -71,6 +71,8 @@ spec:
               valueFrom: { secretKeyRef: { name: jenkins-secrets, key: INFLUX_DB_TOKEN } }
             - name: STRIPE_WEBHOOK_SECRET
               valueFrom: { secretKeyRef: { name: jenkins-secrets, key: STRIPE_WEBHOOK_SECRET } }
+            - name: ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: jenkins-secrets, key: ADMIN_PASSWORD } }
           volumeMounts:
             - name: jenkins-home
               mountPath: /var/jenkins_home
@@ -108,6 +110,40 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: jenkins
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: jenkins-role
+# the Jenkins service must be able to retrieve of a list of JMeter server-agent endpoints for use in distributed performance testing
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["endpoints"]
+    verbs: ["get", "list", "watch"]
+  # allow Jenkins to execute the command,
+  # kubectl scale deployment jmeter-agents --replicas=2
+  # which is used for distributed workloads
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: jenkins-rb
+subjects:
+  - kind: ServiceAccount
+    name: jenkins
+roleRef:
+  kind: Role
+  name: jenkins-role
+  apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -159,8 +195,8 @@ data:
         local:
           allowsSignup: false
           users:
-            - id: zdzdzd
-              password: zdzdzd
+            - id: admin
+              password: ${ADMIN_PASSWORD}
       authorizationStrategy:
         loggedInUsersCanDoAnything:
           allowAnonymousRead: false
